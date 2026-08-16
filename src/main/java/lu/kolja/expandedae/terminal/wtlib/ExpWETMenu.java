@@ -11,6 +11,7 @@ import lu.kolja.expandedae.terminal.ExpEncodingTerminalMenu;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.item.ItemStack;
 
 public class ExpWETMenu extends ExpEncodingTerminalMenu {
     public static final ResourceLocation ID = Expandedae.makeId("wireless_exp_encoding_terminal");
@@ -34,5 +35,9 @@ public class ExpWETMenu extends ExpEncodingTerminalMenu {
 
     public boolean isWUT() {
         return wetMenuHost.getItemStack().getItem() instanceof ItemWUT;
+    }
+
+    public ItemStack getTerminalItem() {
+        return wetMenuHost.getItemStack();
     }
 }

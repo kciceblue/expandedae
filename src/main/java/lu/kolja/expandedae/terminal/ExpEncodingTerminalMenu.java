@@ -11,14 +11,11 @@ import appeng.menu.me.items.PatternEncodingTermMenu;
 import appeng.util.ConfigInventory;
 import lu.kolja.expandedae.definition.ExpItems;
 import lu.kolja.expandedae.definition.ExpMenus;
-import lu.kolja.expandedae.helper.misc.KeybindUtil;
 import lu.kolja.expandedae.mixin.accessor.AccessorPatternEncodingTermMenu;
 import lu.kolja.expandedae.terminal.wtlib.ExpWETMenu;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
-
-import java.util.Objects;
 
 public class ExpEncodingTerminalMenu extends PatternEncodingTermMenu {
     private static final String ACTION_MODIFY_PATTERN = "modifyPattern";
@@ -36,24 +33,59 @@ public class ExpEncodingTerminalMenu extends PatternEncodingTermMenu {
     @Override
     public void encode() {
         super.encode();
+        refillBlankPatterns();
+    }
+
+    /**
+     * Pattern Refiller Card used to read Shift via client-only {@code Minecraft}
+     * during {@code encode()}, which crashes dedicated servers and aborts the refill.
+     * Shift handling now lives in {@code MixinPatternEncodingTermScreen} + {@link #movePattern}.
+     * This only restocks blank patterns from the ME network.
+     */
+    private void refillBlankPatterns() {
+        if (!(this instanceof ExpWETMenu wetMenu)) {
+            return;
+        }
+
+        var terminalItem = wetMenu.getTerminalItem();
+        if (terminalItem.isEmpty() || !(terminalItem.getItem() instanceof IUpgradeableItem upgradeableItem)) {
+            return;
+        }
+
+        IUpgradeInventory inventory = upgradeableItem.getUpgrades(terminalItem);
+        if (!inventory.isInstalled(ExpItems.PATTERN_REFILLER_CARD)) {
+            return;
+        }
+
+        var encodedPatternSlot = ((AccessorPatternEncodingTermMenu) this).getEncodedPatternSlot();
+        if (encodedPatternSlot.getItem().isEmpty()) {
+            return;
+        }
+
         var node = this.getGridNode();
+        if (node == null || node.getGrid() == null) {
+            return;
+        }
+
         var blankPatternSlot = ((AccessorPatternEncodingTermMenu) this).getBlankPatternSlot();
-
-        if (!(this instanceof ExpWETMenu wetMenu) || wetMenu.itemMenuHost == null) return;
-        var terminalItem = wetMenu.itemMenuHost.getItemStack();
-
-        IUpgradeInventory inventory = ((IUpgradeableItem) terminalItem.getItem()).getUpgrades(terminalItem);
-        if (!inventory.isInstalled(ExpItems.PATTERN_REFILLER_CARD)) return;
-
         var blankPatternSlotCount = blankPatternSlot.getItem().getCount();
-        if (node == null) return;
-        int changed = (int) Objects.requireNonNull(node).getGrid().getStorageService().getInventory().extract(
+        int needed = 64 - blankPatternSlotCount;
+        if (needed <= 0) {
+            return;
+        }
+
+        int changed = (int) node.getGrid().getStorageService().getInventory().extract(
                 AEItemKey.of(AEItems.BLANK_PATTERN),
-                64 - blankPatternSlotCount,
+                needed,
                 Actionable.MODULATE,
                 this.getActionSource()
         );
+        if (changed <= 0) {
+            return;
+        }
+
         blankPatternSlot.set(new ItemStack(AEItems.BLANK_PATTERN, blankPatternSlotCount + changed));
+        blankPatternSlot.setChanged();
     }
 
     public void modifyPattern(Integer data) {
